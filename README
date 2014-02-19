@@ -1,0 +1,6 @@
+NOTE: You must install the cordova plugin org.apache.cordova.network-information before doing a cordova
+build, despite PhoneGap's instructions.  I.e.:
+
+cordova plugin add org.apache.cordova.network-information
+cordova build  #WARNING: this will wipe out the www directory and replace it with a fresh dir structure
+               # and files.  Backup all necessary files first, and then copy back afterwards.
