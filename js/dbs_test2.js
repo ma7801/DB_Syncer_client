@@ -146,8 +146,10 @@ function errorCB(err) {
 	
 }
 
-function successCB() {
+function successCB(client_recs, server_recs) {
 	// Get rid of dialog
+	console.log("In the success callback.");
+	console.log("Client records synced: " + client_recs + ", Server records synced: " + server_recs);
 	
 }
 

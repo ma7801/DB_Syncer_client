@@ -204,7 +204,7 @@ DB_Syncer.prototype = {
     
     initialize_server_db: function() {
     	// *** NEEDS TESTNG
-    	// Creates and initializes the database on the server; only need be called if 
+    	// Creates and initializes the database on the server; only needs be called if 
     	// the database hasn't already been created on the server
     	
     	// First, get all the table names in this database, and their definitions
@@ -267,7 +267,11 @@ DB_Syncer.prototype = {
     },
     sync: function(error_callback, success_callback) {
         // ACTUALLY SYNCS THE DATABASES
-
+    	this.success_callback = success_callback;
+    	this.error_callback = error_callback;
+    	this.num_server_records = 0;
+    	this.num_client_records = 0;
+    	
     	//DEBUG:
     	console.log("connection:" + navigator.connection.type);
     	console.log("Connection.NONE=" + Connection.NONE);
@@ -276,11 +280,7 @@ DB_Syncer.prototype = {
             	error_callback(DBS_ERROR_NO_NETWORK);
         }
         
-        // DEBUG:
-        return;
-        
-        
-    	self = this;
+        self = this;
         
     	// First, reduce the sync table
     	this._reduce_sync_table(function(num_records) {
@@ -747,7 +747,10 @@ DB_Syncer.prototype = {
  	   		self._local_update(data, function() {
  	   			
  	   		var db = window.openDatabase(self.local_db_name, self.db_ver, self.db_readable_name, self.size);
- 	                   
+ 	        
+ 	   		// Client record was successfully synced; increment the counter
+ 	   		self.num_client_records++;
+ 	   		
             // Delete the sync table record
     		db.transaction(function(tx) {
     			sql = "DELETE FROM _dbs_sync_actions WHERE record_id=? AND sync_action=?";
@@ -764,7 +767,6 @@ DB_Syncer.prototype = {
                 		// DEBUG:
                 		console.log("This was the last record...starting server to client sync...");
                 		
-                		// DEBUG COMMENTED OUT BELOW FOR DEBUGGING!
                 		self.server_to_client_sync();
                 	}
                 
@@ -871,11 +873,24 @@ DB_Syncer.prototype = {
     	// console.log("data:" + JSON.stringify(data));
     	// console.log("raw data:" + data);
     	
+    	// If no server records
+    	if (data[0].server_has_records === 0) {
+    		console.log("Server has no records to sync.  Sync complete.");
+    		this.success_callback(this.num_client_records, 0);
+    	}
+    	    	
     	self = this;
     	db.transaction(function(tx) {
+    		var is_last_server_record = false;
+    		
     		// Process the data
 	    	for (var cur = 0; cur < data.length; cur++) {
-	    	
+	    		
+	    		// If this is the last server record, set a flag so success callback can be called
+	    		//  (at the completion of the sync of the last record)
+	    		if (cur === data.length - 1) {
+	    			is_last_server_record = true;
+	    		}
 	    		//tx.sync_id = data[cur].id;  // Save the id for the success
 											// callback
 	    		
@@ -903,7 +918,7 @@ DB_Syncer.prototype = {
 					// so that a new
 	        		// "instance" of this function was called for each record)
 	        		self._execute_server_action(tx, sql, data[cur].data_values, data[cur].record_id,
-	        				data[cur].table_name, data[cur].id);
+	        				data[cur].table_name, data[cur].id, is_last_server_record);
 	        		
 	    		}
 	    		else if(data[cur].sync_action === "update") {
@@ -927,7 +942,7 @@ DB_Syncer.prototype = {
 		    		
 		    		// Execute the update
 		    		self._execute_server_action(tx, sql, data[cur].data_values, data[cur].record_id, 
-		    				data[cur].table_name, data[cur].id);
+		    				data[cur].table_name, data[cur].id, is_last_server_record);
 		    		
 	    		}
 	    		else if (data[cur].sync_action === "delete") {
@@ -938,7 +953,7 @@ DB_Syncer.prototype = {
 		    		
 		    		// Execute the 'delete' (logical)
 		    		self._execute_server_action(tx, sql, [], data[cur].record_id, data[cur].table_name, 
-		    				data[cur].id);
+		    				data[cur].id, is_last_server_record);
 		    		
 	    		}
     		    	
@@ -952,14 +967,14 @@ DB_Syncer.prototype = {
     	});
 	   
     },
-    _execute_server_action: function(tx, sql, data, record_id, table_name, sync_id) {
+    _execute_server_action: function(tx, sql, data, record_id, table_name, sync_id, is_last_server_record) {
     	self = this;
     	
     	console.log("in _execute_server_action");
     	console.log("sql:" + sql);
     
     	tx.executeSql(sql, data, function(tx) {
-    		// Delete the automatically generated sync action record - we don't want
+    		// Delete the automatically generated sync action record (from trigger) - we don't want
         	//  to resync this
         	sql = "DELETE FROM _dbs_sync_actions WHERE record_id=? AND table_name=?";
         	
@@ -980,25 +995,30 @@ DB_Syncer.prototype = {
     		
     		// Tell the server that it can delete its corresponding sync record
     		console.log("sync_id=" + sync_id);
-			self._delete_server_sync_record(sync_id);
+			self._delete_server_sync_record(sync_id, is_last_server_record);
 			self.success_handler("Processed the server record successfully.");
-			
+			// Increment the server record counter
+			self.num_server_records++;
 			
 		}, function(tx, err) {
 			self.error_handler("Error processing a record sent from server: " + err.message);
 		});
     },
-    _delete_server_sync_record: function(sync_id) {
+    _delete_server_sync_record: function(sync_id, is_last_server_record) {
     	// @Could probably just put this code directly in _execute_server_action
     	//
     	// Called when a server sync record is no longer required because it has
 		// been successfully synced on
     	// client; tells the server to delete the sync record indicated by
 		// 'sync_id'
-    	
+    	self = this;
     	
     	$.post(this.server_URL, {action:"delete_sync_record", remote_db:this.server_db_name, 
-			 direction:"server_to_client", sync_record_id:sync_id});
+			 direction:"server_to_client", sync_record_id:sync_id}, function() {
+				 if (is_last_server_record) {
+					 self.success_callback(self.num_client_records, self.num_server_records);
+				 }
+			 });
 		
     	
     },
