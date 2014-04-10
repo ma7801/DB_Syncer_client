@@ -32,7 +32,7 @@ var DBS_ERROR_NO_NETWORK = 1;
 
 // DB_Syncer constructor
 
-function DB_Syncer() {
+function DB_Syncer(error_callback, success_callback) {
     
 	// All of these variables to which the object properties are assigned are defined in dbsconfig.js
 	this.local_db_name = __local_db_name;
