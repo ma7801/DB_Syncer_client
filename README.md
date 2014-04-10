@@ -35,11 +35,9 @@ All 'error_callback' functions have the following arguments passed to them:
 
 <h2>Usage Example</h2>
 
-<code>
-my_dbs = new DB_Syncer();
-
-my_dbs.initialize_client_db();
-my_dbs.initialize_server_db();
+<code>my_dbs = new DB_Syncer();
+> my_dbs.initialize_client_db();
+> my_dbs.initialize_server_db();
 
 /* Code to do stuff in the database, insert, update, delete, etc. 
 ...
