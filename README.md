@@ -36,21 +36,21 @@ All 'error_callback' functions have the following arguments passed to them:
 <h2>Usage Example</h2>
 
 <code>my_dbs = new DB_Syncer();
-> my_dbs.initialize_client_db();
-> my_dbs.initialize_server_db();
+<code>my_dbs.initialize_client_db();
+<code>my_dbs.initialize_server_db();
 
-/* Code to do stuff in the database, insert, update, delete, etc. 
-...
-...
-...
-*/
+<code>// Code to do stuff in the database, insert, update, delete, etc. 
+<code>//...
+<code>//...
+<code>//...
+<code>//
 
-my_dbs.sync(
-    function(client_recs,server_recs) {
-        // Successfully synced the databases
-        console.log("Successfully synced " + client_recs + 
-                    " client records and " + server_recs " server records!");
-
+<code>my_dbs.sync(
+<code>    function(client_recs,server_recs) {
+<code>        // Successfully synced the databases
+<code>        console.log("Successfully synced " + client_recs + 
+<code>                    " client records and " + server_recs " server records!");
+<code>
     }
     function() {
         // Error on sync
