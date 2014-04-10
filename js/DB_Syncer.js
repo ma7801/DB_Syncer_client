@@ -32,161 +32,25 @@ var DBS_ERROR_NO_NETWORK = 1;
 
 // DB_Syncer constructor
 
-function DB_Syncer(error_callback, success_callback) {
+function DB_Syncer(success_callback, error_callback) {
     
-	// All of these variables to which the object properties are assigned are defined in dbsconfig.js
-	this.local_db_name = __local_db_name;
-	this.db_readable_name = __db_readable_name;
-    this.db_ver = __db_ver;
-    this.db_size = __db_size;
-    this.server_URL = __server_URL;
-    this.server_db_name = __server_db_name;
-    this.id_col = __id_col_name;
-    this.tables_to_sync = $.extend(true,[],__tables_to_sync); // Performs deep copy
-    
-    
-    var db = window.openDatabase(this.local_db_name, this.db_ver, this.db_readable_name, this.db_size);
-    self = this;
-    
-    db.transaction(
-    	function(tx) {
-    		// Create the _dbs_sync_actions table
-    	    var sql = "CREATE TABLE IF NOT EXISTS _dbs_sync_actions (" +
-	                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-	                    "table_name VARCHAR(20), " +
-	                    "record_id INTEGER, " +
-	                    "sync_action VARCHAR(20), " +
-	                    "timestamp TEXT)";
-	        
-	        tx.executeSql(sql, [], function() {
-	        	console.log("Success: created _dbs_sync_actions table");
-	        }, function (tx, err) {
-	        	self.error_handler("Error creating _dbs_sync_actions table: " + err.message);
-	        });
-
-	        // Create the _dbs_vars table
-	        sql = "CREATE TABLE IF NOT EXISTS _dbs_vars (" +
-	        		"id INTEGER PRIMARY KEY AUTOINCREMENT, " + 
-	        		"db_locked BOOLEAN DEFAULT 0, " +
-	        		"triggers_created BOOLEAN DEFAULT 0)";
-	        
-	        tx.executeSql(sql, [], function() {
-	        	console.log("Successfully created _dbs_vars (or it already existed)");
-	        	
-	        	// Create a record on _dbs_vars if it doesn't have a record yet
-	        	sql = "INSERT INTO _dbs_vars (id, db_locked, triggers_created) VALUES (?, ?,?)";
-	        	
-	        	
-	        	// The below calls set_triggers no matter what, but passes an
-				// error code of 0 if no error
-	        	tx.executeSql(sql, [1, 0,0], function() {
-	        		var error = {"code":0};
-	        		
-	        		set_triggers(error);
-	        	}, function(tx, error) {
-	        		set_triggers(error);
-	        	});
-	        	
-	        	var set_triggers = function(err) {
-	        		
-	        		// If we have an unexpected error, i.e. anything other than
-					// no error or primary key
-	        		// error
-	        		if(!(err.code === 0 || err.code === 1)) {
-	        			console.log("Error in inserting values into _dbs_vars: (" + err.code + "):" + err.message);
-	        			return;
-	        		}
-	        		
-	        		// Create triggers on all of the tables in the database 
-		        	
-		        	// First, see if the triggers are already created
-		        	sql = "SELECT triggers_created FROM _dbs_vars";
-		        	tx.executeSql(sql, [], function(tx, results) {
-		        		if (results.rows.item(0).triggers_created) {
-		        			// Triggers already created; skip the rest of the
-							// code within this callback
-		        			console.log("Triggers already created, skipping...");
-		        			return;
-		        		}
-		        	
-		        	   	// Create the triggers on each table for all actions
-				       	for (var cur = 0; cur < self.tables_to_sync.length; cur++) {
-				        	var table_name = self.tables_to_sync[cur];
-				        	// DEBUG:
-				        	console.log("Attempting to create triggers on table '" + table_name + "'...");
-				        	
-				        	// Insert trigger
-			        		sql = "CREATE TRIGGER IF NOT EXISTS insert_" + table_name + " AFTER INSERT ON " +
-			        			table_name + 
-			        			" BEGIN " +
-			        				" INSERT INTO _dbs_sync_actions (table_name, record_id, sync_action," +
-			        				"timestamp) VALUES ('" + table_name + 
-			        				"', NEW.id,'insert',datetime('now'));" +
-			        			"END;";
-			        		
-			        		console.log("trigger sql=" + sql);
-			        		tx.executeSql(sql, [], function () {
-			        			console.log("Successfully created insert trigger on table " + table_name);
-			        		}, function(tx, err) {
-			        			console.log("Error creating trigger on table " + table_name + ":" +
-			        					err.message);
-			        		});
-			        		
-			        		// Update trigger
-			        		sql = "CREATE TRIGGER IF NOT EXISTS update_" + table_name + " AFTER UPDATE ON " +
-			        				table_name +
-			        				" BEGIN " +
-			        				" INSERT INTO _dbs_sync_actions (table_name, record_id, sync_action," +
-			        				"timestamp) VALUES ('" + table_name + 
-			        				"', NEW.id,'update',datetime('now'));" +
-			        				"END;";
-			        		
-			        		tx.executeSql(sql, [], function () {
-			        			console.log("Successfully created update trigger on table " + table_name);
-			        		}, function(tx, err) {
-			        			console.log("Error creating trigger on table " + table_name + ":" +
-			        					err.message);
-			        		});
-			        		
-			        		// CODE WHERE ACTUAL DELETE TRIGGER WOULD GO IF IMPLEMENTED
-			        		
-			        		tx.executeSql(sql, [], function () {
-			        			console.log("Successfully created update trigger on table " + table_name);
-			        		}, function(tx, err) {
-			        			console.log("Error creating trigger on table " + table_name + ":" +
-			        					err.message);
-			        		});
-			        		
-			        	}
-			        	
-			   
-	        		
-	        		}, function (tx, err) {
-	        		console.log("Error looking up triggers_created in _dbs_vars: " + err.message);
-	        		});
-        		}
-	        	
-	        	
-	           	
-	        	
-	        	
-	        	
-	        }, function(tx, err) {
-	        	console.log("Error creating _dbs_vars table: " + err.message);
-	        });
-    	
-	        
-	        
-	       
-    	
-    	}, function(err) {console.log("open database error: " + err.message);}, function() {
-	    	console.log("open database success!"); }
-    
-	);
-    
-    
-    
-    
+	try {
+		// All of these variables to which the object properties are assigned are defined in dbsconfig.js
+		this.local_db_name = __local_db_name;
+		this.db_readable_name = __db_readable_name;
+	    this.db_ver = __db_ver;
+	    this.db_size = __db_size;
+	    this.server_URL = __server_URL;
+	    this.server_db_name = __server_db_name;
+	    this.id_col = __id_col_name;
+	    this.tables_to_sync = $.extend(true,[],__tables_to_sync); // Performs deep copy
+	}
+	catch(e) {
+		if(arguments.length > 1) { error_callback(e.message); }
+	}
+	if(arguments.length > 0) { success_callback(); }
+	    
+   
 }
 
 
@@ -201,8 +65,161 @@ DB_Syncer.prototype = {
     is_ready: function() {
     	return this.ready;
     },
-    
-    initialize_server_db: function() {
+    initialize_client_db: function(success_callback, error_callback) {
+    	var db = window.openDatabase(this.local_db_name, this.db_ver, this.db_readable_name, this.db_size);
+        self = this;
+        
+        db.transaction(
+        	function(tx) {
+        		// Create the _dbs_sync_actions table
+        	    var sql = "CREATE TABLE IF NOT EXISTS _dbs_sync_actions (" +
+    	                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+    	                    "table_name VARCHAR(20), " +
+    	                    "record_id INTEGER, " +
+    	                    "sync_action VARCHAR(20), " +
+    	                    "timestamp TEXT)";
+    	        
+    	        tx.executeSql(sql, [], function() {
+    	        	console.log("Success: created _dbs_sync_actions table");
+    	        }, function (tx, err) {
+    	        	error_callback("Error creating _dbs_sync_actions table: " + err.message);
+    	        });
+
+    	        // Create the _dbs_vars table
+    	        sql = "CREATE TABLE IF NOT EXISTS _dbs_vars (" +
+    	        		"id INTEGER PRIMARY KEY AUTOINCREMENT, " + 
+    	        		"db_locked BOOLEAN DEFAULT 0, " +
+    	        		"triggers_created BOOLEAN DEFAULT 0)";
+    	        
+    	        tx.executeSql(sql, [], function() {
+    	        	console.log("Successfully created _dbs_vars (or it already existed)");
+    	        	
+    	        	// Create a record on _dbs_vars if it doesn't have a record yet
+    	        	sql = "INSERT INTO _dbs_vars (id, db_locked, triggers_created) VALUES (?, ?,?)";
+    	        	
+    	        	
+    	        	// The below calls set_triggers no matter what, but passes an
+    				// error code of 0 if no error
+    	        	tx.executeSql(sql, [1, 0,0], function() {
+    	        		var error = {"code":0};
+    	        		
+    	        		set_triggers(error);
+    	        	}, function(tx, error) {
+    	        		set_triggers(error);
+    	        	});
+    	        	
+    	        	var set_triggers = function(err) {
+    	        		
+    	        		// If we have an unexpected error, i.e. anything other than
+    					// no error or primary key
+    	        		// error
+    	        		if(!(err.code === 0 || err.code === 1)) {
+    	        			console.log("Error in inserting values into _dbs_vars: (" + err.code + "):" + err.message);
+    	        			error_callback("Error in inserting values into _dbs_vars: (" + err.code + "):" + err.message);
+    	        			return;
+    	        		}
+    	        		
+    	        		// Create triggers on all of the tables in the database 
+    		        	
+    		        	// First, see if the triggers are already created
+    		        	sql = "SELECT triggers_created FROM _dbs_vars";
+    		        	tx.executeSql(sql, [], function(tx, results) {
+    		        		if (results.rows.item(0).triggers_created) {
+    		        			// Triggers already created; skip the rest of the
+    							// code within this callback
+    		        			console.log("Triggers already created, skipping...");
+    		        			return;
+    		        		}
+    		        	
+    		        	   	// Create the triggers on each table for all actions
+    				       	for (var cur = 0; cur < self.tables_to_sync.length; cur++) {
+    				        	var table_name = self.tables_to_sync[cur];
+    				        	// DEBUG:
+    				        	console.log("Attempting to create triggers on table '" + table_name + "'...");
+    				        	
+    				        	// Insert trigger
+    			        		sql = "CREATE TRIGGER IF NOT EXISTS insert_" + table_name + " AFTER INSERT ON " +
+    			        			table_name + 
+    			        			" BEGIN " +
+    			        				" INSERT INTO _dbs_sync_actions (table_name, record_id, sync_action," +
+    			        				"timestamp) VALUES ('" + table_name + 
+    			        				"', NEW.id,'insert',datetime('now'));" +
+    			        			"END;";
+    			        		
+    			        		console.log("trigger sql=" + sql);
+    			        		tx.executeSql(sql, [], function () {
+    			        			console.log("Successfully created insert trigger on table " + table_name);
+    			        		}, function(tx, err) {
+    			        			console.log("Error creating trigger on table " + table_name + ":" +
+    			        					err.message);
+    			        			error_callback("Error creating trigger on table " + table_name + ":" +
+    			        					err.message);
+    			        		});
+    			        		
+    			        		// Update trigger
+    			        		sql = "CREATE TRIGGER IF NOT EXISTS update_" + table_name + " AFTER UPDATE ON " +
+    			        				table_name +
+    			        				" BEGIN " +
+    			        				" INSERT INTO _dbs_sync_actions (table_name, record_id, sync_action," +
+    			        				"timestamp) VALUES ('" + table_name + 
+    			        				"', NEW.id,'update',datetime('now'));" +
+    			        				"END;";
+    			        		
+    			        		tx.executeSql(sql, [], function () {
+    			        			console.log("Successfully created update trigger on table " + table_name);
+    			        			success_callback();
+    			        		}, function(tx, err) {
+    			        			console.log("Error creating trigger on table " + table_name + ":" +
+    			        					err.message);
+    			        			error_callback("Error creating trigger on table " + table_name + ":" +
+    			        					err.message);
+    			        		});
+    			        		
+    			        		// CODE WHERE ACTUAL DELETE TRIGGER WOULD GO IF IMPLEMENTED
+    			        		/*  - when implementing, put call to success_callback in success callback of exectueSql below
+    			        		tx.executeSql(sql, [], function () {
+    			        			console.log("Successfully created delete trigger on table " + table_name);
+    			        		}, function(tx, err) {
+    			        			console.log("Error creating trigger on table " + table_name + ":" +
+    			        					err.message);
+    			        			error_callback("Error creating trigger on table " + table_name + ":" +
+    			        					err.message);
+    			        		});
+    			        		*/
+    			        		
+    			        	}
+    			        	
+    			   
+    	        		
+    	        		}, function (tx, err) {
+    	        		console.log("Error looking up triggers_created in _dbs_vars: " + err.message);
+    	        		error_callback("Error looking up triggers_created in _dbs_vars: " + err.message);
+    	        		});
+            		}
+    	        	
+    	        }, function(tx, err) {
+    	        	console.log("Error creating _dbs_vars table: " + err.message);
+    	        	error_callback("Error creating _dbs_vars table: " + err.message);
+    	        });
+        	
+    	        
+    	        
+    	       
+        	
+        	},  
+        	function(err) {
+        		console.log("open database error: " + err.message);
+        		error_callback("open database error: " + err.message);
+        	}, 
+        	function() {
+        		console.log("open database success!");
+
+        	}
+        
+    	);
+        	
+    },
+    initialize_server_db: function(success_callback, error_callback) {
     	// *** NEEDS TESTNG
     	// Creates and initializes the database on the server; only needs be called if 
     	// the database hasn't already been created on the server
@@ -265,7 +282,7 @@ DB_Syncer.prototype = {
     	
     	
     },
-    sync: function(error_callback, success_callback) {
+    sync: function(success_callback, error_callback) {
         // ACTUALLY SYNCS THE DATABASES
     	this.success_callback = success_callback;
     	this.error_callback = error_callback;
@@ -288,7 +305,7 @@ DB_Syncer.prototype = {
 			// call the server to client sync
     		if(num_records === 0) {
     			console.log("Number of client records = 0");
-    			self.server_to_client_sync();
+    			self._server_to_client_sync();
     		}
     		// DEBUG:
     		else {
@@ -695,7 +712,7 @@ DB_Syncer.prototype = {
                                 id_col:self.id_col,
                         		remote_db:self.server_db_name,
                         		direction:"client_to_server"},
-                                function (data) {self.sync_callback(data, is_last_record);}, "json");
+                                function (data) {self._sync_callback(data, is_last_record);}, "json");
                     	}, 	
                     	function(tx, err) { 
                     	self.error_handler("Could not lookup the max id from a table: " 
@@ -724,7 +741,7 @@ DB_Syncer.prototype = {
     	 );
     	
     },
-    sync_callback: function(data, is_last_record) {
+    _sync_callback: function(data, is_last_record) {
     	// Called after the server responds in this.sync()
         
     	console.log("in sync callback");
@@ -767,7 +784,7 @@ DB_Syncer.prototype = {
                 		// DEBUG:
                 		console.log("This was the last record...starting server to client sync...");
                 		
-                		self.server_to_client_sync();
+                		self._server_to_client_sync();
                 	}
                 
     			}, function(tx, err) {
@@ -775,7 +792,7 @@ DB_Syncer.prototype = {
     			});
         		      	
 
-    		}, function(err) { self.error_handler("Could not open database (sync_callback): " + err.message); }, 
+    		}, function(err) { self.error_handler("Could not open database (_sync_callback): " + err.message); }, 
     		self.success_handler("Opened the database."));
         	
  	   		});
@@ -822,9 +839,9 @@ DB_Syncer.prototype = {
                                         data.new_id + ", error: " + err.message);
                     });
                 }, function(err) {
-                	self.error_handler("Could not open database (sync_callback): " + err.message); 
+                	self.error_handler("Could not open database (_sync_callback): " + err.message); 
                 },
-                self.success_handler("Opened the database (sync_callback)."));
+                self.success_handler("Opened the database (_sync_callback)."));
      
             }
             else {
@@ -845,7 +862,7 @@ DB_Syncer.prototype = {
 		 */
 
     },
-    server_to_client_sync: function() {
+    _server_to_client_sync: function() {
     	// @NEEDS TESTING
     	
     	// Register an ajax error handler
@@ -854,7 +871,7 @@ DB_Syncer.prototype = {
          });
     	self = this;
     	// DEBUG:
-    	console.log("in server_to_client_sync");
+    	console.log("in _server_to_client_sync");
     	
     	$.post(this.server_URL, {action:"get_server_sync_data", remote_db:this.server_db_name, 
 			 direction:"server_to_client"}, function (data) {self._server_to_client_sync_callback(data);}, "json");

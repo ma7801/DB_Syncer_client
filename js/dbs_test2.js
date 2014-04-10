@@ -118,8 +118,16 @@ function create_db() {
 	//dbs = new DB_Syncer("_sync_test_two", "1.0", "DB_Syncer test", 1000000);
 	dbs = new DB_Syncer();
 	
-	dbs._empty_sync_table();
-	dbs._reset_db_triggers();
+	dbs.initialize_client_db(
+		function() {
+			console.log("successfully initialized db");
+		},
+		function (err) {
+			console.log("error initializing db");
+		}
+	);
+	//dbs._empty_sync_table();
+	//dbs._reset_db_triggers();
 
 }
 
@@ -129,7 +137,7 @@ function sync_db() {
 	dbs.set_remote_db("test");
 	dbs.set_id_col("id");
 */
-	dbs.sync(errorCB, successCB);
+	dbs.sync(successCB, errorCB);
 	console.log("Done syncing?");
 
 }
