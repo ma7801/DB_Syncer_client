@@ -15,49 +15,49 @@ Configuration settings are located in the "dbsconfig.js" file.  Set these values
 
 Creates a DB_Syncer object,  The 'error_callback' indicates the function that will be called if there is an error during object creation. 'success_callback' is the function that will be called if everything goes swimmingly. See below for arguments of 'error_callback'; 'success_callback' is passed no arguments.
 
-<code>DB_Syncer.initialize_client_db([error_callback], [success_callback])</code>
+`DB_Syncer.initialize_client_db([error_callback], [success_callback])`
 Creates a table in the local database called "_dbs_sync_actions" which will maintain sync information, sets some triggers up in the tables that are to be synced (set in dbsconfig.js). This must be called before any data (that is to be synced) is added to the database.  DB_Syncer_Client and DB_Syncer_Server currently do not support syncing pre-existing data. Must be called before calling DB_Syncer.sync();
 
 
-<code>DB_Syncer.initialize_server_db([success_callback], [error_callback])</code>
+`DB_Syncer.initialize_server_db([success_callback], [error_callback])`
 
 Initializes that server database. DB_Syncer_Server must be installed on server. Calls remote function on server (at the URL located in dbsconfig.js) to create the database if it doesn't exist (i.e. __server_db_name in dbsconfig.js). Creates a table "_dbs_sync_actions" on server database which will maintain sync information, and sets some triggers up in the tables on the remote database. See below for arguments of 'error_callback'; 'success_callback' is passed no arguments.
 
-<code>DB_Syncer.sync([success_callback], [error_callback])</code>
+`DB_Syncer.sync([success_callback], [error_callback])`
 
 Actually syncs the local and remote databases. 'error_callback' is the function called on error, 'success_callback' is the function called on success. See below for arguments of 'error_callback'; 'success_callback' is passed the following arguments:
-<code>success_callback(number_of_clients_records_synced, number_of_server_records_synced)</code>
+`success_callback(number_of_clients_records_synced, number_of_server_records_synced)`
 
 <strong>NOTE:</strong>
 All 'error_callback' functions have the following arguments passed to them:
-<code>error_callback(err_code, err_message)</code>
+`error_callback(err_code, err_message)`
 
 
 <h2>Usage Example</h2>
+```javascript
+my_dbs = new DB_Syncer();
+my_dbs.initialize_client_db();
+my_dbs.initialize_server_db();
 
-<code>my_dbs = new DB_Syncer();
-<code>my_dbs.initialize_client_db();
-<code>my_dbs.initialize_server_db();
+// Code to do stuff in the database, insert, update, delete, etc. 
+//...
+//...
+//...
+//
 
-<code>// Code to do stuff in the database, insert, update, delete, etc. 
-<code>//...
-<code>//...
-<code>//...
-<code>//
+my_dbs.sync(
+    function(client_recs,server_recs) {
+        // Successfully synced the databases
+        console.log("Successfully synced " + client_recs + 
+                    " client records and " + server_recs " server records!");
 
-<code>my_dbs.sync(
-<code>    function(client_recs,server_recs) {
-<code>        // Successfully synced the databases
-<code>        console.log("Successfully synced " + client_recs + 
-<code>                    " client records and " + server_recs " server records!");
-<code>
     }
     function() {
         // Error on sync
     }
     
 );
-</code>
+```
 
 
 <h2>Miscellaneous Notes</h2> 
