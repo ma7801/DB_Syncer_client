@@ -1,6 +1,6 @@
 <h1> DB_Syncer_client </h1>
 
-<strong>DB_Syncer_Client</strong> is a PhoneGap-based API that allows a database on a PhoneGap device to be synced with a remote server.  DB_Syncer_Client must be used with DB_Syncer_Server, which uses MySQL (PHP mysqli) to access the server database.
+<strong>DB_Syncer_Client</strong> is a Phonegap-based API that allows a database within a PhoneGap mobile app to be synced with a remote server.  It is intended to be a simple solution to database syncing, and to put as little responsibility on the developer to worry about the details of database synchronization.  DB_Syncer_Client must be used with DB_Syncer_Server (to be installed on the server, of course), which uses MySQL (PHP mysqli) to access the server database. 
 
 <strong>NOTE: This README is in beta :)!</strong>
 
@@ -11,11 +11,12 @@ Configuration settings are located in the "dbsconfig.js" file.  Set these values
 <h2>API Reference:</h2>
 
 
-(Constructor) <code>DB_Syncer([success_callback], [error_callback])</code>
+(Constructor) 
+`DB_Syncer([success_callback], [error_callback])`
 
 Creates a DB_Syncer object,  The 'error_callback' indicates the function that will be called if there is an error during object creation. 'success_callback' is the function that will be called if everything goes swimmingly. See below for arguments of 'error_callback'; 'success_callback' is passed no arguments.
 
-`DB_Syncer.initialize_client_db([error_callback], [success_callback])`
+`DB_Syncer.initialize_client_db([success_callback], [error_callback])`
 Creates a table in the local database called "_dbs_sync_actions" which will maintain sync information, sets some triggers up in the tables that are to be synced (set in dbsconfig.js). This must be called before any data (that is to be synced) is added to the database.  DB_Syncer_Client and DB_Syncer_Server currently do not support syncing pre-existing data. Must be called before calling DB_Syncer.sync();
 
 
@@ -39,11 +40,11 @@ my_dbs = new DB_Syncer();
 my_dbs.initialize_client_db();
 my_dbs.initialize_server_db();
 
-// Code to do stuff in the database, insert, update, delete, etc. 
-//...
-//...
-//...
-//
+/* Code to do stuff in the database, insert, update, delete, etc. 
+...
+...
+...
+*/
 
 my_dbs.sync(
     function(client_recs,server_recs) {
