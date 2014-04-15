@@ -863,8 +863,6 @@ DB_Syncer.prototype = {
 
     },
     _server_to_client_sync: function() {
-    	// @NEEDS TESTING
-    	
     	// Register an ajax error handler
     	$(document).ajaxError(function(e,j,as,error) {
         	console.log("AJAX error: " + error);

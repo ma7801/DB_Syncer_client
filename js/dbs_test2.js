@@ -137,6 +137,11 @@ function sync_db() {
 	dbs.set_remote_db("test");
 	dbs.set_id_col("id");
 */
+	$.mobile.loading("show", {
+		text:"Syncing, please wait",
+		textVisible: true,
+		
+	});
 	dbs.sync(successCB, errorCB);
 	console.log("Done syncing?");
 
@@ -148,17 +153,22 @@ function errorCB(err) {
 	
 	// detect and possibly display any error (like no network connection)
 	// Also, get rid of the dialog
+	$.mobile.loading("hide");
 	if(err === DBS_ERROR_NO_NETWORK) {
 		alert("No network detected...can't sync!");
 	}
+	
 	
 }
 
 function successCB(client_recs, server_recs) {
 	// Get rid of dialog
+	$.mobile.loading("hide");
+	
 	console.log("In the success callback.");
 	console.log("Client records synced: " + client_recs + ", Server records synced: " + server_recs);
 	
+	alert("Done Syncing!");
 }
 
 function init_server_db() {
