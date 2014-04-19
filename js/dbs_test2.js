@@ -173,8 +173,11 @@ function successCB(client_recs, server_recs) {
 
 function init_server_db() {
 	dbs = new DB_Syncer();
-	dbs.initialize_server_db();
+	dbs.initialize_server_db(blah, blahblah);
 }
+
+function blah() {}
+function blahblah() {}
 
 function create_random_data() {
 	
