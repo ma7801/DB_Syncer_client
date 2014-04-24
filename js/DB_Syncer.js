@@ -30,6 +30,7 @@ var DBS_ERROR_NO_NETWORK = 1;
 var DBS_ERROR_DATABASE = 2;
 var DBS_ERROR_CONFIG = 3;
 var DBS_ERROR_SERVER = 4;
+var DBS_ERROR_SYNC_IN_PROGRESS = 5;
 
 
 
@@ -47,6 +48,7 @@ function DB_Syncer(success_callback, error_callback) {
 	    this.server_URL = __server_URL;
 	    this.server_db_name = __server_db_name;
 	    this.id_col = __id_col_name;
+	    this.max_sync_time = __max_sync_time;
 	    this.tables_to_sync = $.extend(true,[],__tables_to_sync); // Performs
 																	// deep copy
 	}
@@ -96,19 +98,19 @@ DB_Syncer.prototype = {
     	        sql = "CREATE TABLE IF NOT EXISTS _dbs_vars (" +
     	        		"id INTEGER PRIMARY KEY AUTOINCREMENT, " + 
     	        		"db_locked BOOLEAN DEFAULT 0, " +
-    	        		"triggers_created BOOLEAN DEFAULT 0)";
+    	        		"last_synced TEXT)";
     	        
     	        tx.executeSql(sql, [], function() {
     	        	console.log("Successfully created _dbs_vars (or it already existed)");
     	        	
     	        	// Create a record on _dbs_vars if it doesn't have a record
 					// yet
-    	        	sql = "INSERT INTO _dbs_vars (id, db_locked, triggers_created) VALUES (?, ?,?)";
+    	        	sql = "INSERT INTO _dbs_vars (id, db_locked, last_synced) VALUES (?,?,?)";
     	        	
     	        	
     	        	// The below calls set_triggers no matter what, but passes
 					// an error code of 0 if no error
-    	        	tx.executeSql(sql, [1, 0, 0], function() {
+    	        	tx.executeSql(sql, [1, 0, "never"], function() {
     	        		var error = {"code":0};
     	        		
     	        		set_triggers(error);
@@ -128,7 +130,7 @@ DB_Syncer.prototype = {
     	        		
     	        		// Create triggers on all of the tables in the database
     		        	
-    		        	// First, see if the triggers are already created
+    		        	/*// First, see if the triggers are already created
     		        	sql = "SELECT triggers_created FROM _dbs_vars";
     		        	tx.executeSql(sql, [], function(tx, results) {
     		        		if (results.rows.item(0).triggers_created) {
@@ -137,84 +139,72 @@ DB_Syncer.prototype = {
     							// code within this callback
     		        			console.log("Triggers already created, skipping...");
     		        			return;
-    		        		}
+    		        		}*/
     		        	
-    		        	   	// Create the triggers on each table for all actions
-    				       	for (var cur = 0; cur < self.tables_to_sync.length; cur++) {
-    				        	var table_name = self.tables_to_sync[cur];
-    				        	// DEBUG:
-    				        	console.log("Attempting to create triggers on table '" + table_name + "'...");
-    				        	
-    				        	// Insert trigger
-    			        		sql = "CREATE TRIGGER IF NOT EXISTS insert_" + table_name + " AFTER INSERT ON " +
-    			        			table_name + 
-    			        			" BEGIN " +
-    			        				" INSERT INTO _dbs_sync_actions (table_name, record_id, sync_action," +
-    			        				"timestamp) VALUES ('" + table_name + 
-    			        				"', NEW.id,'insert',datetime('now'));" +
-    			        			"END;";
-    			        		
-    			        		console.log("trigger sql=" + sql);
-    			        		tx.executeSql(sql, [], function () {
-    			        			console.log("Successfully created insert trigger on table " + table_name);
-    			        		}, function(tx, err) {
-    			        			self.error_handler("Error creating trigger on table " + table_name + ":" +
-    			        					err.message, DBS_ERROR_DATABASE, error_callback);
-    			        		});
-    			        		
-    			        		// Update trigger
-    			        		sql = "CREATE TRIGGER IF NOT EXISTS update_" + table_name + " AFTER UPDATE ON " +
-    			        				table_name +
-    			        				" BEGIN " +
-    			        				" INSERT INTO _dbs_sync_actions (table_name, record_id, sync_action," +
-    			        				"timestamp) VALUES ('" + table_name + 
-    			        				"', NEW.id,'update',datetime('now'));" +
-    			        				"END;";
-    			        		
-    			        		tx.executeSql(sql, [], function () {
-    			        			console.log("Successfully created update trigger on table " + table_name);
-    			        			success_callback();
-    			        		}, function(tx, err) {
-    			        			self.error_handler("Error creating trigger on table " + table_name + ":" +
-    			        					err.message, DBS_ERROR_DATABASE, error_callback);
-    			        		});
-    			        		
-    			        		// CODE WHERE ACTUAL DELETE TRIGGER WOULD GO IF
-								// IMPLEMENTED
-    			        		/*
-								 * - when implementing, put call to
-								 * success_callback in success callback of
-								 * exectueSql below tx.executeSql(sql, [],
-								 * function () { console.log("Successfully
-								 * created delete trigger on table " +
-								 * table_name); }, function(tx, err) {
-								 * console.log("Error creating trigger on table " +
-								 * table_name + ":" + err.message);
-								 * error_callback("Error creating trigger on
-								 * table " + table_name + ":" + err.message);
-								 * });
-								 */
-    			        		
-    			        	}
-    			        	
-    			   
-    	        		
-    	        		}, function (tx, err) {
-    	        			self.error_handler("Error looking up triggers_created in _dbs_vars: " + err.message, 
-    	        					DBS_ERROR_DATABASE, error_callback);
-    	        		});
-            		}
-    	        	
-    	        }, function(tx, err) {
-    	        	self.error_handler("Error creating _dbs_vars table: " + err.message, 
-    	        			DBS_ERROR_DATABASE, error_callback);
-    	        });
-        	
-    	        
-    	        
-    	       
-        	
-        	},  
+   		        	   	// Create the triggers on each table for all actions
+   				       	for (var cur = 0; cur < self.tables_to_sync.length; cur++) {
+				        	var table_name = self.tables_to_sync[cur];
+				        	// DEBUG:
+				        	console.log("Attempting to create triggers on table '" + table_name + "'...");
+				        	
+				        	// Insert trigger
+			        		sql = "CREATE TRIGGER IF NOT EXISTS insert_" + table_name + " AFTER INSERT ON " +
+			        			table_name + 
+			        			" BEGIN " +
+			        				" INSERT INTO _dbs_sync_actions (table_name, record_id, sync_action," +
+			        				"timestamp) VALUES ('" + table_name + 
+			        				"', NEW.id,'insert',datetime('now'));" +
+			        			"END;";
+			        		
+			        		console.log("trigger sql=" + sql);
+			        		tx.executeSql(sql, [], function () {
+			        			console.log("Successfully created insert trigger on table " + table_name);
+			        		}, function(tx, err) {
+			        			self.error_handler("Error creating trigger on table " + table_name + ":" +
+			        					err.message, DBS_ERROR_DATABASE, error_callback);
+			        		});
+			        		
+			        		// Update trigger
+			        		sql = "CREATE TRIGGER IF NOT EXISTS update_" + table_name + " AFTER UPDATE ON " +
+			        				table_name +
+			        				" BEGIN " +
+			        				" INSERT INTO _dbs_sync_actions (table_name, record_id, sync_action," +
+			        				"timestamp) VALUES ('" + table_name + 
+			        				"', NEW.id,'update',datetime('now'));" +
+			        				"END;";
+			        		
+			        		tx.executeSql(sql, [], function () {
+			        			console.log("Successfully created update trigger on table " + table_name);
+			        			success_callback();
+			        		}, function(tx, err) {
+			        			self.error_handler("Error creating trigger on table " + table_name + ":" +
+			        					err.message, DBS_ERROR_DATABASE, error_callback);
+			        		});
+			        		
+			        		// CODE WHERE ACTUAL DELETE TRIGGER WOULD GO IF
+							// IMPLEMENTED
+			        		/*
+							 * - when implementing, put call to
+							 * success_callback in success callback of
+							 * exectueSql below tx.executeSql(sql, [],
+							 * function () { console.log("Successfully
+							 * created delete trigger on table " +
+							 * table_name); }, function(tx, err) {
+							 * console.log("Error creating trigger on table " +
+							 * table_name + ":" + err.message);
+							 * error_callback("Error creating trigger on
+							 * table " + table_name + ":" + err.message);
+							 * });
+							 */
+			        		
+			        	}
+    	        	}
+		        }, function(tx, err) {
+		        	self.error_handler("Error creating _dbs_vars table: " + err.message, 
+		        			DBS_ERROR_DATABASE, error_callback);
+		        });
+	        	
+          	},  
         	function(err) {
         		self.error_handler("Can't open database: " + err.message, DBS_ERROR_DATABASE, error_callback);
         	}, 
@@ -296,8 +286,8 @@ DB_Syncer.prototype = {
     },
     sync: function(success_callback, error_callback) {
         // ACTUALLY SYNCS THE DATABASES
-    	this.sync_success_callback = success_callback;
-    	this.sync_error_callback = error_callback;
+    	this.success_callback = success_callback;
+    	this.error_callback = error_callback;
     	this.num_server_records = 0;
     	this.num_client_records = 0;
     	
@@ -306,70 +296,74 @@ DB_Syncer.prototype = {
         }
         
         self = this;
-        
-    	// First, reduce the sync table
-    	this._reduce_sync_table(function(num_records) {
-    		// See if there are no records in the sync table - in that case just
-			// call the server to client sync
-    		if(num_records === 0) {
-    			console.log("Number of client records = 0");
-    			self._server_to_client_sync();
-    		}
-    		/*
-			 * else { // Copy the reduced sync table to a temp table for
-			 * debugging // purposes var db =
-			 * window.openDatabase(self.local_db_name, self.db_ver,
-			 * self.db_readable_name, self.size); db.transaction(function(tx) {
-			 * var sql = "DROP TABLE IF EXISTS _dbs_last_sync_reduction";
-			 * tx.executeSql(sql, [], function(tx) { sql = "CREATE TABLE IF NOT
-			 * EXISTS _dbs_last_sync_reduction AS SELECT * FROM
-			 * _dbs_sync_actions"; tx.executeSql(sql, [], function() {
-			 * console.log("Created a copy of the reduced sync table."); },
-			 * function(tx, err) { console.log("Error creating copy of the
-			 * reduced sync table:" + err.message); }); }, function(tx, err) {
-			 * self.error_handler("Error dropping existing 'last_sync_reduction'
-			 * table:" + err.message); }); }); }
-			 */
-    		
-    		// END DEBUG
-    		
-    	
-    	
-	    	// DEBUG***
-	    	// return;
-	    	
-	        var db = window.openDatabase(self.local_db_name, self.db_ver, self.db_readable_name, self.size);
-	        db.transaction(function(tx) {
-	            // Get the sync action records
-	            var sql = "SELECT * FROM _dbs_sync_actions";
-	            tx.executeSql(sql, [], function(tx, sync_actions_results) {
-	                
-	                var is_last_record = false;  
-	                // For each record in the sync action table
-	                for(cur_sync = 0; cur_sync < sync_actions_results.rows.length; cur_sync++) {
-	                	// If this is the last record
-	                	if(cur_sync === sync_actions_results.rows.length - 1) {
-	                		is_last_record = true;
-	                	}
-	                	
-	                	self._sync_record(sync_actions_results.rows.item(cur_sync).id, is_last_record);
-	                }
-	                           
-	            }, 
-	            function(tx, err) {
-	            	self.error_handler("Could not select from _dbs_sync_actions table (sync): " + err.message, DBS_ERROR_DATABASE, error_callback);
-	            });
-	        },
-	        function(err) {
-	        	self.error_handler("Could not open database (sync): " + err.message, DBS_ERROR_DATABASE, error_callback);
-	        },
-	        function() {
-	            self.success_handler("Opened the database (sync).");
-	        
-	        });
-            
-    	});
-    },
+    
+       
+        // First, check if the database is locked; if locked, call error callback; if not, sync
+        self._check_db_state(function() {
+        	self.error_handler("Database locked (sync in progress).", DBS_ERROR_SYNC_IN_PROGRESS, error_callback);
+        }, function() {
+        	self._lock_db(function() {
+        		// Second, reduce the sync table
+		    	self._reduce_sync_table(function(num_records) {
+		    		// See if there are no records in the sync table - in that case just
+					// call the server to client sync
+		    		if(num_records === 0) {
+		    			console.log("Number of client records = 0");
+		    			self._server_to_client_sync();
+		    		}
+		    		/*
+					 * else { // Copy the reduced sync table to a temp table for
+					 * debugging // purposes var db =
+					 * window.openDatabase(self.local_db_name, self.db_ver,
+					 * self.db_readable_name, self.size); db.transaction(function(tx) {
+					 * var sql = "DROP TABLE IF EXISTS _dbs_last_sync_reduction";
+					 * tx.executeSql(sql, [], function(tx) { sql = "CREATE TABLE IF NOT
+					 * EXISTS _dbs_last_sync_reduction AS SELECT * FROM
+					 * _dbs_sync_actions"; tx.executeSql(sql, [], function() {
+					 * console.log("Created a copy of the reduced sync table."); },
+					 * function(tx, err) { console.log("Error creating copy of the
+					 * reduced sync table:" + err.message); }); }, function(tx, err) {
+					 * self.error_handler("Error dropping existing 'last_sync_reduction'
+					 * table:" + err.message); }); }); }
+					 */
+		    		// END DEBUG
+		    			// DEBUG***
+			    	// return;
+			    	// Get the sync action records
+		    		else {
+			    		var db = window.openDatabase(self.local_db_name, self.db_ver, self.db_readable_name, self.size);
+			    		 
+			    		db.transaction(function(tx) {
+				    		sql = "SELECT * FROM _dbs_sync_actions";
+				            tx.executeSql(sql, [], function(tx, sync_actions_results) {
+				                
+				                var is_last_record = false;  
+				                // For each record in the sync action table
+				                for(cur_sync = 0; cur_sync < sync_actions_results.rows.length; cur_sync++) {
+				                	// If this is the last record
+				                	if(cur_sync === sync_actions_results.rows.length - 1) {
+				                		is_last_record = true;
+				                	}
+				                	
+				                	self._sync_record(sync_actions_results.rows.item(cur_sync).id, is_last_record);
+				                }
+				           	}, 
+					        function(tx, err) {
+					          	self.error_handler("Could not select from _dbs_sync_actions table (sync): " + err.message, DBS_ERROR_DATABASE, error_callback);
+					        });
+					         
+			    		}, 
+			    		function(err) {
+			    			self.error_handler("Could not open database (sync): " + err.message, DBS_ERROR_DATABASE, error_callback);
+			    		},
+			    		function() {
+			    			self.success_handler("Opened the database (sync).");
+		                });
+		    		}
+		    	});
+		    });
+        });
+   },
     _reduce_sync_table: function(callback) {
     	
     	// @NEEDS TESTING
@@ -510,7 +504,7 @@ DB_Syncer.prototype = {
     								tx.executeSql(sql, [results.rows.item(older_indices[cur]).id], function(tx, results) {
     									self.success_handler("Deleted older duplicate actions in _dbs_sync_actions table");
     								}, function(tx, err) {
-    									self.error_handler("Error deleting duplicate in _dbs_sync_actions table.", DBS_ERROR_DATABASE, self.sync_error_callback);
+    									self.error_handler("Error deleting duplicate in _dbs_sync_actions table.", DBS_ERROR_DATABASE, self.error_callback);
     								});
     							}
     							
@@ -521,7 +515,7 @@ DB_Syncer.prototype = {
 									self.success_handler("Updated latest duplicate action in _dbs_sync_actions to insert.");
 								}, function(tx, err) {
 									self.error_handler("Error updating latest duplicate action in _dbs_sync_actions: " 
-											+ err.message, DBS_ERROR_DATABASE, self.sync_error_callback)
+											+ err.message, DBS_ERROR_DATABASE, self.error_callback)
 								});
 	 						}
     						
@@ -581,7 +575,7 @@ DB_Syncer.prototype = {
 									tx.executeSql(sql, [results.rows.item(older_indices[cur]).id], function(tx, results) {
 										self.success_handler("Deleted older duplicate actions in _dbs_sync_actions table");
 									}, function(tx, err) {
-										self.error_handler("Error deleting duplicate in _dbs_sync_actions table.", DBS_ERROR_DATABASE, self.sync_error_callback);
+										self.error_handler("Error deleting duplicate in _dbs_sync_actions table.", DBS_ERROR_DATABASE, self.error_callback);
 									});
 								}
 								
@@ -595,7 +589,7 @@ DB_Syncer.prototype = {
     									function(tx, results) {
 											self.success_handler("Updated older duplicate actions in _dbs_sync_actions table");
 										}, function(tx, err) {
-										self.error_handler("Error updating duplicate in _dbs_sync_actions table.", DBS_ERROR_DATABASE, self.sync_error_callback);
+										self.error_handler("Error updating duplicate in _dbs_sync_actions table.", DBS_ERROR_DATABASE, self.error_callback);
 									});
     							}
     							// }
@@ -603,7 +597,7 @@ DB_Syncer.prototype = {
     						else {
     							self.error_handler("Unexpected error in sync table reduction: latest sync " + 
     									"record with duplicate record_id is neither an update or a delete" +
-    									" (first record was an INSERT).", DBS_ERROR_DATABASE, self.sync_error_callback);
+    									" (first record was an INSERT).", DBS_ERROR_DATABASE, self.error_callback);
     						}
     						
     						
@@ -631,14 +625,14 @@ DB_Syncer.prototype = {
     								tx.executeSql(sql, [results.rows.item(older_indices[cur]).id], function(tx, results) {
     									self.success_handler("Deleted older duplicate actions in _dbs_sync_actions table");
     								}, function(tx, err) {
-    									self.error_handler("Error deleting duplicate in _dbs_sync_actions table.", DBS_ERROR_DATABASE, self.sync_error_callback);
+    									self.error_handler("Error deleting duplicate in _dbs_sync_actions table.", DBS_ERROR_DATABASE, self.error_callback);
     								});
     							}
     						}
     						else {
     							self.error_handler("Unexpected error in sync table reduction: latest sync " + 
     									"record with duplicate record_id is neither an update or a delete" +
-    									" (first record was an UPDATE).", DBS_ERROR_DATABASE, self.sync_error_callback);
+    									" (first record was an UPDATE).", DBS_ERROR_DATABASE, self.error_callback);
     						}
 		
     						
@@ -650,12 +644,12 @@ DB_Syncer.prototype = {
 				// table
     			callback(results.rows.length);
     		}, function(tx, err) {
-    				self.error_handler("Error selecting sync_actions table during sync table reduction", DBS_ERROR_DATABASE, self.sync_error_callback);
+    				self.error_handler("Error selecting sync_actions table during sync table reduction", DBS_ERROR_DATABASE, self.error_callback);
     		});},
     			
     		
     	function(err) {
-        	self.error_handler("Could not open database (reduce_sync_table): " + err.message, DBS_ERROR_DATABASE, self.sync_error_callback);
+        	self.error_handler("Could not open database (reduce_sync_table): " + err.message, DBS_ERROR_DATABASE, self.error_callback);
         },
         function() {
             self.success_handler("Opened the database (reduce_sync_table).");
@@ -720,24 +714,24 @@ DB_Syncer.prototype = {
                     	}, 	
                     	function(tx, err) { 
                     	self.error_handler("Could not lookup the max id from a table: " 
-                    		+ err.message, DBS_ERROR_DATABASE, self.sync_error_callback);
+                    		+ err.message, DBS_ERROR_DATABASE, self.error_callback);
                     });
                        
                     
                 }, 
                 function(tx, err) {
                 	self.error_handler("Could not select data to send from the local database: " + 
-                			err.message, DBS_ERROR_DATABASE, self.sync_error_callback);
+                			err.message, DBS_ERROR_DATABASE, self.error_callback);
                 });
                 	
             },
             function(tx, err) {
-            	self.error_handler("Cound not select record from _dbs_sync_actions table (_sync_record): " + err.message, DBS_ERROR_DATABASE, self.sync_error_callback);
+            	self.error_handler("Cound not select record from _dbs_sync_actions table (_sync_record): " + err.message, DBS_ERROR_DATABASE, self.error_callback);
             });
             
     	 }, 
     	 function(err) {
-    		 self.error_handler("Could not open database (_sync_record): " + err.message, DBS_ERROR_DATABASE, self.sync_error_callback);
+    		 self.error_handler("Could not open database (_sync_record): " + err.message, DBS_ERROR_DATABASE, self.error_callback);
     	 }, 
     	 function() {
     		 self.success_handler("Opened the database (_sync_record)");
@@ -759,7 +753,7 @@ DB_Syncer.prototype = {
         self = this;
         
     	if(data.err) {
-            this.error_handler("Error received back from server: " + data.err_msg, DBS_ERROR_SERVER, self.sync_error_callback);
+            this.error_handler("Error received back from server: " + data.err_msg, DBS_ERROR_SERVER, self.error_callback);
             return;
         }
  	   	else {
@@ -793,11 +787,11 @@ DB_Syncer.prototype = {
                 	}
                 
     			}, function(tx, err) {
-    				self.error_handler("Couldn't delete record in the _dbs_sync_actions table: " + err.message, DBS_ERROR_DATABASE, self.sync_error_callback);
+    				self.error_handler("Couldn't delete record in the _dbs_sync_actions table: " + err.message, DBS_ERROR_DATABASE, self.error_callback);
     			});
         		      	
 
-    		}, function(err) { self.error_handler("Could not open database (_sync_callback): " + err.message, DBS_ERROR_DATABASE, self.sync_error_callback); }, 
+    		}, function(err) { self.error_handler("Could not open database (_sync_callback): " + err.message, DBS_ERROR_DATABASE, self.error_callback); }, 
     		self.success_handler("Opened the database."));
         	
  	   		});
@@ -832,7 +826,7 @@ DB_Syncer.prototype = {
                     		callback();
                     	}, function (tx, err) {
                     		self.error_handler("Error deleting auto-generated sync action record:" +
-                    				err.message, DBS_ERROR_DATABASE, self.sync_error_callback);
+                    				err.message, DBS_ERROR_DATABASE, self.error_callback);
                     	});
                     	
                     	
@@ -842,10 +836,10 @@ DB_Syncer.prototype = {
                     	
                         self.error_handler("Error updating id in table '" + data.table + "':" + 
                                         self.id_col + " changed:" + data.old_id + "-->" + 
-                                        data.new_id + ", error: " + err.message, DBS_ERROR_DATABASE, self.sync_error_callback);
+                                        data.new_id + ", error: " + err.message, DBS_ERROR_DATABASE, self.error_callback);
                     });
                 }, function(err) {
-                	self.error_handler("Could not open database (_sync_callback): " + err.message, DBS_ERROR_DATABASE, self.sync_error_callback); 
+                	self.error_handler("Could not open database (_sync_callback): " + err.message, DBS_ERROR_DATABASE, self.error_callback); 
                 },
                 self.success_handler("Opened the database (_sync_callback)."));
      
@@ -894,10 +888,16 @@ DB_Syncer.prototype = {
     	// console.log("data:" + JSON.stringify(data));
     	// console.log("raw data:" + data);
     	
+    	self = this;
+    	
     	// If no server records
     	if (data[0].server_has_records === 0) {
     		console.log("Server has no records to sync.  Sync complete.");
-    		this.sync_success_callback(this.num_client_records, 0);
+    		//Unlock the database
+    		self._unlock_db(function() {
+    			// Call the success callback specified by developer
+    			self.success_callback(self.num_client_records, 0);
+    		});
     	}
     	    	
     	self = this;
@@ -983,7 +983,7 @@ DB_Syncer.prototype = {
 	    	}
     
     	}, function (err) {
-    		self.error_handler("Error opening the database (_server_to_client_sync_callback) " + err.message, DBS_ERROR_DATABASE, self.sync_error_callback);
+    		self.error_handler("Error opening the database (_server_to_client_sync_callback) " + err.message, DBS_ERROR_DATABASE, self.error_callback);
     	}, function () {
     		self.success_handler("Opened the database");
     	});
@@ -1011,7 +1011,7 @@ DB_Syncer.prototype = {
         		self.success_handler("Successfully deleted auto-generated sync action record.");
         	}, function (tx, err) {
         		self.error_handler("Error deleting auto-generated sync action record:" +
-        				err.message, DBS_ERROR_DATABASE, self.sync_error_callback);
+        				err.message, DBS_ERROR_DATABASE, self.error_callback);
         	});
 			
     		
@@ -1023,7 +1023,7 @@ DB_Syncer.prototype = {
 			self.num_server_records++;
 			
 		}, function(tx, err) {
-			self.error_handler("Error processing a record sent from server: " + err.message, DBS_ERROR_DATABASE, self.sync_error_callback);
+			self.error_handler("Error processing a record sent from server: " + err.message, DBS_ERROR_DATABASE, self.error_callback);
 		});
     },
     _delete_server_sync_record: function(sync_id, is_last_server_record) {
@@ -1038,30 +1038,107 @@ DB_Syncer.prototype = {
     	$.post(this.server_URL, {action:"delete_sync_record", remote_db:this.server_db_name, 
 			 direction:"server_to_client", sync_record_id:sync_id}, function() {
 				 if (is_last_server_record) {
-					 self.sync_success_callback(self.num_client_records, self.num_server_records);
+					 //Unlock the database (sync done)
+					 self._unlock_db(function() {
+						 // Call the success callback specified by developer
+						 self.success_callback(self.num_client_records, self.num_server_records);
+					 });
 				 }
 			 });
 		
     	
     },
-   
+    _check_db_state: function(locked_callback, unlocked_callback) {
+    	var db = window.openDatabase(self.local_db_name, self.db_ver, self.db_readable_name, self.size);
+       	     	
+    	self = this;
+    	
+    	db.transaction(function(tx) {
+        	sql = "SELECT * FROM _dbs_vars";
+        	tx.executeSql(sql, [], function(tx, results) {
+        		now = new Date();
+        		last_sync = new Date(results.rows.item(0).last_synced);
+        		time_diff = now.getTime() - last_sync.getTime();  // Milliseconds
+        		time_diff = time_diff / (1000 * 60 * 60)  // Convert to hours
+        		
+        		// In case database locked flag wasn't reset due to app shutdown during last sync, check
+        		//  to see if last sync was more than this.max_sync_time
+        		if (time_diff > this.max_sync_time) { //Database lock is "stuck"
+        			// unlock the database
+        			console.log("Database lock has been set for more than " + this.max_sync_time +
+        					" hours.  Unlocking database...");
+        		    self._unlock_db(function() {console.log("Unlocked the database.");});
+        			unlocked_callback();
+        			
+        		}
+        		else if(results.rows.item(0).db_locked === 1) { // Database is locked
+        			locked_callback();
+        		}
+        		else { // Database is unlocked
+        			unlocked_callback();
+        		}
+        		
+        		}, function(tx, err) {
+        			self.error_handler("Error in reading table _dbs_vars: " + 
+		    			err.message, DBS_ERROR_DATABASE, self.error_callback);
+		    	});
+		    }, function(err) {
+		    	self.error_handler("Error in opening local database: " + err.message, DBS_ERROR_DATABASE, self.error_callback);
+		});
+    },
+    _lock_db: function(callback) {
+    	var db = window.openDatabase(self.local_db_name, self.db_ver, self.db_readable_name, self.size);
+        
+    	self = this;
+    	
+    	db.transaction(function(tx) {
+    		sql = "UPDATE _dbs_vars SET db_locked=1";
+    		tx.executeSql(sql, [], function() {
+    			console.log("Successfully locked database.");
+    			callback();
+    		}, function(tx, err) {
+    			self.error_handler("Error in locking database: " + err.message, DBS_ERROR_DATABASE, self.error_callback);
+    		});
+    	}, function(err) {
+    		self.error_handler("Error in opening local database: " + err.message, DBS_ERROR_DATABASE, self.error_callback);
+    	});
+    	       
+    },
+    _unlock_db: function(callback) {
+    	var db = window.openDatabase(self.local_db_name, self.db_ver, self.db_readable_name, self.size);
+        
+    	self = this;
+    	
+    	db.transaction(function(tx) {
+    		sql = "UPDATE _dbs_vars SET db_locked=0";
+    		tx.executeSql(sql, [], function() {
+    			console.log("Successfully unlocked database.");
+    			callback();
+    		}, function(tx, err) {
+    			self.error_handler("Error in unlocking database: " + err.message, DBS_ERROR_DATABASE, self.error_callback);
+    		});
+    	}, function(err) {
+    		self.error_handler("Error in opening local database: " + err.message, DBS_ERROR_DATABASE, self.error_callback);
+    	});
+    },
        
     error_handler: function(msg, err_code, errorCB) {
         console.log("DB_Syncer error: " + msg);
         
         // Attempt to unlock the database
-        
-        
-        if (arguments > 2) {
-        	errorCB({message:msg, code:err_code});
-        }
+        self._unlock_db(function() {
+	        
+	        if (arguments > 2) {
+	        	errorCB({message:msg, code:err_code});
+	        }
+        });
     },
     
     success_handler: function(msg) {
-        console.log("DB_Syncer success: " + msg);
+    	console.log("DB_Syncer success: " + msg);
     },
     
-    /* Development functions */
+    /* Testing functions */
     _empty_sync_table: function() {
     	 var db = window.openDatabase(this.local_db_name, this.db_ver, this.db_readable_name, this.size);
          self = this;

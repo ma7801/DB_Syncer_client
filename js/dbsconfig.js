@@ -23,3 +23,6 @@ var __id_col_name = "id";
 // Tables to sync
 var __tables_to_sync = ["test_values", "test_users"];
 
+// Max sync time expected (hours); used for resetting database lock in case it wasn't reset properly
+var __max_sync_time = 2;
+

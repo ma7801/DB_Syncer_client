@@ -126,8 +126,8 @@ function create_db() {
 			console.log("error initializing db");
 		}
 	);
-	//dbs._empty_sync_table();
-	//dbs._reset_db_triggers();
+	dbs._empty_sync_table();
+	dbs._reset_db_triggers();
 
 }
 
