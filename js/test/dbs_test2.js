@@ -116,7 +116,11 @@ function create_db() {
 	);
 
 	//dbs = new DB_Syncer("_sync_test_two", "1.0", "DB_Syncer test", 1000000);
-	dbs = new DB_Syncer();
+	dbs = new DB_Syncer(function() {
+		console.log("Successfully created DB_Syncer object.");
+	}, function(err) {
+		console.log("Error creating DB_Syncer object: " + err.message);
+	});
 	
 	dbs.initialize_client_db(
 		function() {

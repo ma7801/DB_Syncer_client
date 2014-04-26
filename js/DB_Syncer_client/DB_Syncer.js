@@ -1126,7 +1126,7 @@ DB_Syncer.prototype = {
         console.log("DB_Syncer error: " + msg);
         
         // Attempt to unlock the database
-        self._unlock_db(function() {
+        this._unlock_db(function() {
 	        
 	        if (arguments > 2) {
 	        	errorCB({message:msg, code:err_code});
